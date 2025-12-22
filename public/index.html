@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Izakaya Sakura | Order</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'izakaya-red': '#c41e3a',
+            'izakaya-black': '#1a1a1a',
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Playfair Display', serif; }
+  </style>
+</head>
+<body class="bg-izakaya-black text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-izakaya-red py-6 shadow-lg">
+    <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
+      <h1 class="text-4xl font-bold">Izakaya Sakura</h1>
+      <button id="cartBtn" class="bg-white text-izakaya-black px-6 py-3 rounded-full font-semibold flex items-center gap-2 hover:bg-gray-200 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+        <span id="cartCount">0</span> items
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Menu Tabs -->
+    <div class="lg:col-span-2">
+      <div class="flex gap-4 mb-6 overflow-x-auto pb-2">
+        <button class="tab-btn active px-6 py-3 bg-izakaya-red rounded-full font-medium" data-category="sake">Sake</button>
+        <button class="tab-btn px-6 py-3 bg-gray-800 rounded-full font-medium" data-category="skewers">Yakitori Skewers</button>
+        <button class="tab-btn px-6 py-3 bg-gray-800 rounded-full font-medium" data-category="appetizers">Appetizers</button>
+        <button class="tab-btn px-6 py-3 bg-gray-800 rounded-full font-medium" data-category="mains">Mains</button>
+      </div>
+
+      <div id="menuGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Items injected by JS -->
+      </div>
+    </div>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="bg-gray-900 rounded-xl p-6 h-fit sticky top-8 hidden lg:block">
+      <h2 class="text-2xl font-bold mb-4">Your Order</h2>
+      <div id="cartItems" class="space-y-3 mb-6"></div>
+      <div class="border-t border-gray-700 pt-4">
+        <div class="flex justify-between text-xl font-bold">
+          <span>Total</span>
+          <span id="cartTotal">$0</span>
+        </div>
+      </div>
+      <button class="w-full mt-6 bg-izakaya-red py-4 rounded-full font-bold text-lg hover:bg-red-700 transition">
+        Checkout
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Cart Button -->
+  <button id="mobileCartBtn" class="fixed bottom-6 right-6 bg-izakaya-red text-white p-5 rounded-full shadow-2xl z-40 flex items-center gap-2 lg:hidden">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+    <span class="font-bold text-lg" id="mobileCartCount">0</span>
+  </button>
+
+  <!-- AI Chat Button -->
+  <button id="aiChatBtn" class="fixed bottom-6 left-6 bg-white text-izakaya-black p-5 rounded-full shadow-2xl z-40 flex items-center gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17 11h-4V7h-2v4H7v2h4v4h2v-4h4v-2z"/>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+    </svg>
+    <span class="font-bold">AI Assistant</span>
+  </button>
+
+  <!-- AI Chat Modal -->
+  <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-end justify-center z-50">
+    <div class="bg-gray-900 w-full max-w-2xl rounded-t-3xl h-96 md:h-auto md:max-h-96 md:rounded-3xl flex flex-col">
+      <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+        <h3 class="text-2xl font-bold">Ask the Izakaya AI</h3>
+        <button id="closeAi" class="text-3xl">&times;</button>
+      </div>
+      <div id="aiMessages" class="flex-1 overflow-y-auto p-6 space-y-4"></div>
+      <div class="p-6 border-t border-gray-700">
+        <div class="flex gap-3">
+          <input id="aiInput" type="text" placeholder="e.g. Pair a sake with chicken, or I'm feeling down today..." class="flex-1 bg-gray-800 rounded-full px-6 py-4 focus:outline-none"/>
+          <button id="aiSend" class="bg-izakaya-red px-8 py-4 rounded-full font-bold hover:bg-red-700">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menu Data & Logic -->
+  <script>
+    const menu = {
+      sake: [
+        {id:1, name:"Hakkaisan Junmai Ginjo", desc:"Clean, crisp, melon notes", price:380},
+        {id:2, name:"Dassai 45 Junmai Daiginjo", desc:"Fruity, elegant, apple & pear", price:480},
+        {id:3, name:"Kubota Senju", desc:"Dry, smooth, classic Niigata style", price:420},
+        {id:4, name:"Born Gold Junmai Daiginjo", desc:"Luxurious, floral, silky", price:680},
+        {id:5, name:"Tatenokawa Phoenix", desc:"Light, aromatic, citrus hints", price:360},
+        {id:6, name:"Nanbu Bijin Tokubetsu Junmai", desc:"Balanced, rice-forward", price:340},
+        {id:7, name:"Dewazakura Ichiro", desc:"Soft, umami-rich, warming", price:400},
+        {id:8, name:"Urakasumi Zen", desc:"Pure, mineral, refreshing", price:450},
+        {id:9, name:"Shichiken Sparkling", desc:"Dry sparkling sake, festive", price:520},
+        {id:10, name:"Kikumasamune Taru Sake", desc:"Cedar-aged, bold & woody", price:320}
+      ],
+      skewers: [
+        {id:11, name:"Chicken Thigh (Negima)", desc:"With spring onion, teriyaki glaze", price:38},
+        {id:12, name:"Chicken Skin (Kawa)", desc:"Crispy, salty perfection", price:32},
+        {id:13, name:"Chicken Meatball (Tsukune)", desc:"With egg yolk dip", price:42},
+        {id:14, name:"Pork Belly (Butabara)", desc:"Juicy, fatty, charred", price:45},
+        {id:15, name:"Beef Tongue (Gyutan)", desc:"Tender, lightly salted", price:68},
+        {id:16, name:"Chicken Wing (Tebasaki)", desc:"Whole wing, crispy", price:48},
+        {id:17, name:"Shiitake Mushroom", desc:"Stuffed with chicken", price:35},
+        {id:18, name:"Asparagus Bacon", desc:"Smoky, savory wrap", price:42},
+        {id:19, name:"Scallop (Hotate)", desc:"Butter soy glaze", price:78},
+        {id:20, name:"Shishito Peppers", desc:"Blistered, sea salt", price:30},
+        {id:21, name:"Quail Egg", desc:"Wrapped in bacon", price:40},
+        {id:22, name:"Lamb Chop Skewer", desc:"Rosemary & garlic", price:85}
+      ],
+      appetizers: [
+        {id:23, name:"Edamame", desc:"Sea salt or spicy garlic", price:38},
+        {id:24, name:"Agedashi Tofu", desc:"Lightly fried, tentsuyu broth", price:48},
+        {id:25, name:"Takoyaki", desc:"6 pieces, bonito flakes", price:58},
+        {id:26, name:"Gyoza", desc:"Pan-fried chicken & cabbage", price:55},
+        {id:27, name:"Sashimi Salad", desc:"Fresh fish over greens", price:98},
+        {id:28, name:"Chawanmushi", desc:"Savory egg custard", price:52},
+        {id:29, name:"Potato Salad", desc:"Japanese-style with kewpie", price:42},
+        {id:30, name:"Kimchi Cucumber", desc:"Spicy, crunchy, refreshing", price:38},
+        {id:31, name:"Seaweed Salad", desc:"Sesame dressing", price:45},
+        {id:32, name:"Chicken Karaage", desc:"Crispy fried chicken bites", price:68}
+      ],
+      mains: [
+        {id:33, name:"Tonkatsu", desc:"Panko pork cutlet, cabbage", price:128},
+        {id:34, name:"Unagi Don", desc:"Grilled eel over rice", price:188},
+        {id:35, name:"Beef Sukiyaki", desc:"Hot pot style (for 2)", price:298},
+        {id:36, name:"Salmon Teriyaki", desc:"Grilled with sweet soy", price:138},
+        {id:37, name:"Tempura Platter", desc:"Prawn, vegetables", price:148},
+        {id:38, name:"Oyako Don", desc:"Chicken & egg rice bowl", price:98},
+        {id:39, name:"Katsu Curry", desc:"Pork cutlet Japanese curry", price:118},
+        {id:40, name:"Chirashi Bowl", desc:"Assorted sashimi over rice", price:168},
+        {id:41, name:"Yakisoba", desc:"Stir-fried noodles with pork", price:88},
+        {id:42, name:"Wagyu Tataki", desc:"Seared beef, ponzu", price:198}
+      ]
+    };
+
+    let cart = [];
+
+    function renderMenu(category) {
+      const grid = document.getElementById('menuGrid');
+      grid.innerHTML = '';
+      menu[category].forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-900 rounded-xl p-6 hover:bg-gray-800 transition';
+        div.innerHTML = `
+          <h3 class="text-xl font-bold mb-2">${item.name}</h3>
+          <p class="text-gray-400 mb-4">${item.desc}</p>
+          <div class="flex justify-between items-center">
+            <span class="text-2xl font-bold text-izakaya-red">$${item.price}</span>
+            <button onclick="addToCart(${item.id})" class="bg-izakaya-red px-6 py-3 rounded-full font-medium hover:bg-red-700">
+              Add
+            </button>
+          </div>
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function addToCart(id) {
+      const item = Object.values(menu).flat().find(i => i.id === id);
+      const existing = cart.find(c => c.id === id);
+      if (existing) existing.qty++;
+      else cart.push({...item, qty: 1});
+      updateCart();
+    }
+
+    function updateCart() {
+      const countEls = [document.getElementById('cartCount'), document.getElementById('mobileCartCount')];
+      countEls.forEach(el => el.textContent = cart.reduce((sum, i) => sum + i.qty, 0));
+
+      document.getElementById('cartTotal').textContent = '$' + cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+
+      const itemsDiv = document.getElementById('cartItems');
+      itemsDiv.innerHTML = '';
+      cart.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'flex justify-between';
+        div.innerHTML = `
+          <span>${item.qty}x ${item.name}</span>
+          <span>$${(item.price * item.qty)}</span>
+        `;
+        itemsDiv.appendChild(div);
+      });
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('active', 'bg-izakaya-red');
+          b.classList.add('bg-gray-800');
+        });
+        btn.classList.add('active', 'bg-izakaya-red');
+        btn.classList.remove('bg-gray-800');
+        renderMenu(btn.dataset.category);
+      });
+    });
+
+    renderMenu('sake');
+
+    // AI Chat Modal
+    const aiModal = document.getElementById('aiModal');
+    const aiMessages = document.getElementById('aiMessages');
+    const aiInput = document.getElementById('aiInput');
+    const aiSend = document.getElementById('aiSend');
+
+    document.getElementById('aiChatBtn').onclick = () => aiModal.classList.remove('hidden');
+    document.getElementById('closeAi').onclick = () => aiModal.classList.add('hidden');
+
+    function addMessage(text, isBot = false, suggestion = null) {
+      const div = document.createElement('div');
+      div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
+      div.innerHTML = `<p>${text}</p>`;
+      if (suggestion) {
+        div.innerHTML += `<button onclick="acceptSuggestion(${suggestion.id})" class="mt-3 bg-white text-izakaya-black px-4 py-2 rounded-full text-sm font-medium">Add to cart</button>`;
+      }
+      aiMessages.appendChild(div);
+      aiMessages.scrollTop = aiMessages.scrollHeight;
+    }
+
+    function acceptSuggestion(id) {
+      addToCart(id);
+      addMessage("Added to your cart! 🍻", true);
+    }
+
+    aiSend.onclick = sendAiMessage;
+    aiInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendAiMessage(); });
+
+    async function sendAiMessage() {
+      const query = aiInput.value.trim();
+      if (!query) return;
+      addMessage(query);
+      aiInput.value = '';
+
+      const prompt = `You are a friendly and knowledgeable izakaya assistant at Izakaya Sakura.
+Menu categories: Sake, Yakitori Skewers, Appetizers, Mains.
+Here are all items (name - description - price in HKD):
+${Object.values(menu).flat().map(i => `${i.name} - ${i.desc} - $${i.price}`).join('\n')}
+
+User message: "${query}"
+
+Respond naturally and conversationally. Suggest 1–2 specific items when relevant.
+If the user mentions mood (e.g. sad, happy, tired), recommend comforting or uplifting food/drinks.
+At the very end, if you want to recommend one specific item to add to cart, output exactly this line (and only one):
+SUGGEST_ITEM_ID:${i.id}
+Do not add extra text after it.`;
+
+      try {
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        if (!response.ok) throw new Error('API error');
+
+        const data = await response.json();
+        let text = data.candidates[0].content.parts[0].text;
+        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        // Extract suggestion
+        const match = text.match(/SUGGEST_ITEM_ID:(\d+)/);
+        let suggestion = null;
+        if (match) {
+          suggestion = Object.values(menu).flat().find(i => i.id == match[1]);
+          text = text.replace(/\n?SUGGEST_ITEM_ID:\d+\n?/, '').trim();
+        }
+
+        addMessage(text, true, suggestion);
+      } catch (err) {
+        console.error(err);
+        addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
+      }
+    }
+  </script>
+</body>
+</html>
