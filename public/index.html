@@ -233,43 +233,86 @@
     function addMessage(text, isBot = false, suggestion = null) {
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
-
-      // Clean version for matching (remove HTML tags)
-      const cleanText = text.replace(/<[^>]*>/g, ' ');
-
-      let processedText = text;
-
-      // Prepare all menu items
-      const items = Object.values(menu).flat();
-      const itemMap = {};
-      items.forEach(item => { itemMap[item.name] = item; });
-
-      // Sort by length descending to match longer names first
-      const sortedNames = items.map(i => i.name).sort((a, b) => b.length - a.length);
-
-      // Build one global regex
-      const regex = new RegExp(`\\b(${sortedNames.map(escapeRegExp).join('|')})\\b`, 'gi');
-
-      processedText = processedText.replace(regex, (match) => {
-        const item = itemMap[match];
-        if (!item) return match;
-        return `<span class="font-bold text-white">${match}</span>` +
-               `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" ` +
-               `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">+ Add</button>`;
-      });
-
-      // Big suggestion button if SUGGEST_ITEM_ID was used
-      if (suggestion) {
-        processedText += `<div class="mt-4">
-          <p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
-          <button onclick="acceptSuggestion(${suggestion.id})"
-            class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
-            Add ${suggestion.name} to cart 🍻
-          </button>
-        </div>`;
+    
+      // Create a temporary container to hold the text
+      const temp = document.createElement('div');
+      temp.innerHTML = text;  // This parses any <strong> etc.
+    
+      // Function to walk through text nodes and insert buttons
+      function processNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          let text = node.textContent;
+          let parent = node.parentNode;
+          let lastIndex = 0;
+          let match;
+    
+          // Build regex for all names
+          const items = Object.values(menu).flat();
+          const escapedNames = items.map(item => ({
+            regex: new RegExp(`(\\b${escapeRegExp(item.name)}\\b)`, 'gi'),
+            item
+          }));
+    
+          // Try each name regex
+          for (const {regex, item} of escapedNames) {
+            while ((match = regex.exec(text)) !== null) {
+              // Add text before match
+              if (match.index > lastIndex) {
+                parent.insertBefore(document.createTextNode(text.slice(lastIndex, match.index)), node);
+              }
+    
+              // Add bold name
+              const bold = document.createElement('span');
+              bold.className = 'font-bold text-white';
+              bold.textContent = match[0];
+              parent.insertBefore(bold, node);
+    
+              // Add button
+              const button = document.createElement('button');
+              button.className = 'inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle';
+              button.textContent = '+ Add';
+              button.onclick = function() {
+                addToCart(item.id);
+                this.innerText = '✓ Added';
+                this.disabled = true;
+                this.classList.add('opacity-60');
+              };
+              parent.insertBefore(button, node);
+    
+              lastIndex = match.index + match[0].length;
+            }
+          }
+    
+          // Add remaining text
+          if (lastIndex < text.length) {
+            parent.insertBefore(document.createTextNode(text.slice(lastIndex)), node);
+          }
+    
+          // Remove the original text node
+          node.remove();
+        } else {
+          // Recurse for child nodes
+          node.childNodes.forEach(processNode);
+        }
       }
-
-      div.innerHTML = `<p class="leading-relaxed">${processedText}</p>`;
+    
+      // Process all nodes in temp
+      processNode(temp);
+    
+      // Add big suggestion if any
+      if (suggestion) {
+        const topDiv = document.createElement('div');
+        topDiv.className = 'mt-4';
+        topDiv.innerHTML = `<p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
+          <button onclick="acceptSuggestion(${suggestion.id})" class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
+            Add ${suggestion.name} to cart 🍻
+          </button>`;
+        temp.appendChild(topDiv);
+      }
+    
+      // Append the processed content to the message div
+      div.appendChild(temp);
+    
       aiMessages.appendChild(div);
       aiMessages.scrollTop = aiMessages.scrollHeight;
     }
