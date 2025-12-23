@@ -256,19 +256,24 @@
       addMessage(query);
       aiInput.value = '';
     
-      const prompt = `You are a friendly and knowledgeable izakaya assistant at Izakaya Sakura.
-    Menu categories: Sake, Yakitori Skewers, Appetizers, Mains.
-    Here are all items (name - description - price in HKD):
-    ${Object.values(menu).flat().map(item => `${item.name} - ${item.desc} - $${item.price}`).join('\n')}
-    
-    User message: "${query}"
-    
-    Respond naturally and conversationally in 2–4 sentences. Suggest 1–2 specific items when relevant.
-    If the user mentions mood (e.g. sad, happy, tired), recommend comforting or uplifting food/drinks.
-    If you want to recommend exactly one specific item for the user to add to cart, end your response with this exact line on its own (nothing after it):
-    SUGGEST_ITEM_ID:<the item id here>
-    
-    Only include that line if you're recommending one item to add. Do not include it otherwise.`;
+      const prompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura — warm, casual, and helpful.
+
+      Full menu (name - description - price HKD - ID):
+      ${Object.values(menu).flat().map(item => `${item.name} - ${item.desc} - $${item.price} - ID:${item.id}`).join('\n')}
+      
+      User message: "${query}"
+      
+      Respond in 2–4 short, lively sentences. Always recommend 1–3 items that fit the request.
+      Be specific with names.
+      
+      If the user seems ready to order or asks for a recommendation, pick YOUR SINGLE FAVORITE matching item from the menu and strongly recommend adding it to cart.
+      
+      At the very end of your response, if (and only if) you want to offer one specific item to add directly to cart, put this exact line on its own (nothing else after it):
+      
+      SUGGEST_ITEM_ID:XX
+      
+      Replace XX with the actual ID of that one item. Use this sparingly — only when it feels natural and the user is likely to want it.
+      Do NOT include the line if recommending multiple or just chatting.`;
     
       try {
         const response = await fetch('/api/gemini', {
