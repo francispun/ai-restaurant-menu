@@ -24,7 +24,6 @@
   </style>
 </head>
 <body class="bg-izakaya-black text-gray-100 min-h-screen">
-  <!-- All HTML same as before (header, menu, cart, modal) -->
   <header class="bg-izakaya-red py-6 shadow-lg">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
       <h1 class="text-4xl font-bold">Izakaya Sakura</h1>
@@ -150,7 +149,6 @@
 
     let cart = [];
 
-    // All cart and menu functions unchanged...
     function renderMenu(category) {
       const grid = document.getElementById('menuGrid');
       grid.innerHTML = '';
@@ -224,7 +222,7 @@
     }
 
     function addMessage(text, isBot = false, recommendations = []) {
-      console.log('addMessage called with recommendations:', recommendations);
+      console.log('addMessage called - recommendations:', recommendations);
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
 
@@ -279,71 +277,71 @@
       addMessage(query);
       aiInput.value = '';
 
-      // First call: Natural response
+      // First call: Natural response (no special instructions)
       const naturalPrompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura.
 
-Use these EXACT dish names when recommending:
+Use these EXACT dish names when recommending (never modify them):
 ${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
 
 User: "${query}"
 
-Respond in 2–4 lively, natural sentences. Use the exact dish names. Be warm and conversational. You can use **bold** for emphasis.`;
+Respond in 2–4 lively, natural sentences. Use the exact dish names above when mentioning items. Be warm and conversational. You can use **bold** for emphasis.
 
-      console.log('1. Sending natural prompt to Gemini');
+Do not add any hidden tags, IDs, or special instructions. Just respond naturally.`;
+
+      console.log('1. Sending natural prompt');
 
       try {
-        const resp1 = await fetch('/api/gemini', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] }) 
+        const resp1 = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] })
         });
-        if (!resp1.ok) throw new Error('First API call failed');
+        if (!resp1.ok) throw new Error('First call failed');
         const data1 = await resp1.json();
         const naturalText = data1.candidates[0].content.parts[0].text.trim();
-        console.log('1. Natural response received:', naturalText);
+        console.log('1. Natural response:', naturalText);
 
-        // Show temporary message
+        // Temporary message
         addMessage(naturalText, true, []);
 
         // Second call: Extract recommendations
-        const extractPrompt = `Message from assistant:
+        const extractPrompt = `Assistant message:
 """${naturalText}"""
 
 Exact menu items:
 ${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
 
-Extract ONLY the menu items positively recommended or mentioned.
+Extract ONLY the menu items that were positively recommended or mentioned.
 
 Respond ONLY with valid JSON:
 {
   "recommendations": ["Exact name 1", "Exact name 2"]
 }
 
-Max 3. Empty array if none.`;
+Max 3 items. Empty array if none.`;
 
-        console.log('2. Sending extraction prompt to Gemini');
+        console.log('2. Sending extraction prompt');
 
-        const resp2 = await fetch('/api/gemini', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] }) 
+        const resp2 = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] })
         });
 
         let recommendations = [];
         if (resp2.ok) {
           const data2 = await resp2.json();
           let jsonText = data2.candidates[0].content.parts[0].text.trim();
-          console.log('2. Raw extraction response:', jsonText);
+          console.log('2. Raw extraction:', jsonText);
           jsonText = jsonText.replace(/^```json\s*|```$/gi, '').trim();
           try {
             const parsed = JSON.parse(jsonText);
             recommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
-            console.log('2. Parsed recommendations:', recommendations);
+            console.log('2. Final recommendations:', recommendations);
           } catch (e) {
-            console.error('2. Failed to parse JSON:', e);
+            console.error('2. JSON parse failed:', e);
           }
-        } else {
-          console.error('2. Extraction API call failed');
         }
 
         // Replace temporary with final
@@ -351,7 +349,7 @@ Max 3. Empty array if none.`;
         addMessage(naturalText, true, recommendations);
 
       } catch (err) {
-        console.error('Error in sendAiMessage:', err);
+        console.error('Error:', err);
         addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
       }
     }
