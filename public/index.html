@@ -24,7 +24,7 @@
   </style>
 </head>
 <body class="bg-izakaya-black text-gray-100 min-h-screen">
-  <!-- Header -->
+  <!-- Header, Menu, Cart UI same as before -->
   <header class="bg-izakaya-red py-6 shadow-lg">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
       <h1 class="text-4xl font-bold">Izakaya Sakura</h1>
@@ -38,7 +38,6 @@
   </header>
 
   <div class="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <!-- Menu Tabs -->
     <div class="lg:col-span-2">
       <div class="flex gap-4 mb-6 overflow-x-auto pb-2">
         <button class="tab-btn active px-6 py-3 bg-izakaya-red rounded-full font-medium" data-category="sake">Sake</button>
@@ -49,7 +48,6 @@
       <div id="menuGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
     </div>
 
-    <!-- Cart Sidebar -->
     <div id="cartSidebar" class="bg-gray-900 rounded-xl p-6 h-fit sticky top-8 hidden lg:block">
       <h2 class="text-2xl font-bold mb-4">Your Order</h2>
       <div id="cartItems" class="space-y-3 mb-6"></div>
@@ -65,7 +63,6 @@
     </div>
   </div>
 
-  <!-- Mobile Cart Button -->
   <button id="mobileCartBtn" class="fixed bottom-6 right-6 bg-izakaya-red text-white p-5 rounded-full shadow-2xl z-40 flex items-center gap-2 lg:hidden">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -73,7 +70,6 @@
     <span class="font-bold text-lg" id="mobileCartCount">0</span>
   </button>
 
-  <!-- AI Chat Button -->
   <button id="aiChatBtn" class="fixed bottom-6 left-6 bg-white text-izakaya-black p-5 rounded-full shadow-2xl z-40 flex items-center gap-3">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
       <path d="M17 11h-4V7h-2v4H7v2h4v4h2v-4h4v-2z"/>
@@ -82,7 +78,6 @@
     <span class="font-bold">AI Assistant</span>
   </button>
 
-  <!-- AI Chat Modal -->
   <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-end justify-center z-50">
     <div class="bg-gray-900 w-full max-w-2xl rounded-t-3xl h-96 md:h-auto md:max-h-96 md:rounded-3xl flex flex-col">
       <div class="p-6 border-b border-gray-700 flex justify-between items-center">
@@ -99,9 +94,8 @@
     </div>
   </div>
 
-  <!-- Menu Data & Logic -->
   <script>
-    const menu = {
+    const menu = { /* your full menu object here - same as before */ 
       sake: [
         {id:1, name:"Hakkaisan Junmai Ginjo", desc:"Clean, crisp, melon notes", price:380},
         {id:2, name:"Dassai 45 Junmai Daiginjo", desc:"Fruity, elegant, apple & pear", price:480},
@@ -156,7 +150,8 @@
 
     let cart = [];
 
-    function renderMenu(category) {
+    // Cart and menu functions (unchanged)
+    function renderMenu(category) { /* unchanged */ 
       const grid = document.getElementById('menuGrid');
       grid.innerHTML = '';
       menu[category].forEach(item => {
@@ -184,11 +179,6 @@
       updateCart();
     }
 
-    function acceptSuggestion(id) {
-      addToCart(id);
-      addMessage("Added to your cart! 🍻", true);
-    }
-
     function updateCart() {
       const countEls = [document.getElementById('cartCount'), document.getElementById('mobileCartCount')];
       countEls.forEach(el => el.textContent = cart.reduce((sum, i) => sum + i.qty, 0));
@@ -203,7 +193,6 @@
       });
     }
 
-    // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => {
@@ -217,7 +206,6 @@
     });
     renderMenu('sake');
 
-    // AI Chat Modal
     const aiModal = document.getElementById('aiModal');
     const aiMessages = document.getElementById('aiMessages');
     const aiInput = document.getElementById('aiInput');
@@ -225,99 +213,73 @@
     document.getElementById('aiChatBtn').onclick = () => aiModal.classList.remove('hidden');
     document.getElementById('closeAi').onclick = () => aiModal.classList.add('hidden');
 
-    // Helper to escape regex
-    function escapeRegExp(string) {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
-    function addMessage(text, isBot = false, suggestion = null) {
+    function addMessage(rawText, isBot = false) {
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
-    
-      // Create a temporary container to hold the text
-      const temp = document.createElement('div');
-      temp.innerHTML = text;  // This parses any <strong> etc.
-    
-      // Function to walk through text nodes and insert buttons
-      function processNode(node) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          let text = node.textContent;
-          let parent = node.parentNode;
-          let lastIndex = 0;
-          let match;
-    
-          // Build regex for all names
-          const items = Object.values(menu).flat();
-          const escapedNames = items.map(item => ({
-            regex: new RegExp(`(\\b${escapeRegExp(item.name)}\\b)`, 'gi'),
-            item
-          }));
-    
-          // Try each name regex
-          for (const {regex, item} of escapedNames) {
-            while ((match = regex.exec(text)) !== null) {
-              // Add text before match
-              if (match.index > lastIndex) {
-                parent.insertBefore(document.createTextNode(text.slice(lastIndex, match.index)), node);
-              }
-    
-              // Add bold name
-              const bold = document.createElement('span');
-              bold.className = 'font-bold text-white';
-              bold.textContent = match[0];
-              parent.insertBefore(bold, node);
-    
-              // Add button
-              const button = document.createElement('button');
-              button.className = 'inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle';
-              button.textContent = '+ Add';
-              button.onclick = function() {
-                addToCart(item.id);
-                this.innerText = '✓ Added';
-                this.disabled = true;
-                this.classList.add('opacity-60');
-              };
-              parent.insertBefore(button, node);
-    
-              lastIndex = match.index + match[0].length;
-            }
-          }
-    
-          // Add remaining text
-          if (lastIndex < text.length) {
-            parent.insertBefore(document.createTextNode(text.slice(lastIndex)), node);
-          }
-    
-          // Remove the original text node
-          node.remove();
-        } else {
-          // Recurse for child nodes
-          node.childNodes.forEach(processNode);
+
+      let responseText = rawText;
+      let recommendedNames = [];
+
+      if (isBot) {
+        try {
+          const json = JSON.parse(rawText);
+          responseText = json.response || rawText;
+          recommendedNames = Array.isArray(json.recommendations) ? json.recommendations : [];
+        } catch (e) {
+          responseText = rawText; // fallback
         }
       }
-    
-      // Process all nodes in temp
-      processNode(temp);
-    
-      // Add big suggestion if any
-      if (suggestion) {
-        const topDiv = document.createElement('div');
-        topDiv.className = 'mt-4';
-        topDiv.innerHTML = `<p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
-          <button onclick="acceptSuggestion(${suggestion.id})" class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
-            Add ${suggestion.name} to cart 🍻
-          </button>`;
-        temp.appendChild(topDiv);
+
+      const p = document.createElement('p');
+      p.className = 'leading-relaxed';
+      p.innerHTML = responseText;
+
+      // Map name -> item
+      const itemMap = {};
+      Object.values(menu).flat().forEach(item => { itemMap[item.name] = item; });
+
+      // Process text nodes
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+
+      for (const node of nodes) {
+        let text = node.textContent;
+        let html = '';
+        let lastIndex = 0;
+
+        for (const name of recommendedNames) {
+          const item = itemMap[name];
+          if (!item) continue;
+          const regex = new RegExp(`(${escapeRegExp(name)})`, 'g');
+          let match;
+          while ((match = regex.exec(text)) !== null) {
+            html += escapeHtml(text.slice(lastIndex, match.index));
+            html += `<span class="font-bold text-white">${name}</span>`;
+            html += `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">+ Add</button>`;
+            lastIndex = match.index + match[0].length;
+          }
+        }
+        html += escapeHtml(text.slice(lastIndex));
+        if (html) {
+          const span = document.createElement('span');
+          span.innerHTML = html;
+          node.parentNode.replaceChild(span, node);
+        }
       }
-    
-      // Append the processed content to the message div
-      div.appendChild(temp);
-    
+
+      div.appendChild(p);
       aiMessages.appendChild(div);
       aiMessages.scrollTop = aiMessages.scrollHeight;
     }
 
-    aiSend.onclick = sendAiMessage;
+    ai_Send.onclick = sendAiMessage;
     aiInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendAiMessage(); });
 
     async function sendAiMessage() {
@@ -328,19 +290,19 @@
 
       const prompt = `You are a friendly and enthusiastic izakaya assistant at Izakaya Sakura.
 
-Use these EXACT dish names when recommending (copy them exactly as shown):
+Here are the EXACT menu item names you must use when recommending (never change them):
 ${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
 
 User message: "${query}"
 
-Respond in 2–4 lively sentences. Recommend 1–3 items using the exact names above.
-Do NOT wrap dish names in **bold** or add any markdown formatting around them.
+Respond ONLY with valid JSON in this exact format (no extra text, no markdown):
 
-If one item is clearly your favorite for the user, end your response with this exact line (only if appropriate):
-SUGGEST_ITEM_ID:XX
-(replace XX with the actual item ID from the menu)
+{
+  "response": "Your natural 2–4 sentence reply using the exact item names above.",
+  "recommendations": ["Exact item name 1", "Exact item name 2"]
+}
 
-Keep it natural, warm, and fun! 🍻`;
+Include only items you actually recommend. Max 3. If one is your favorite, put it first.`;
 
       try {
         const response = await fetch('/api/gemini', {
@@ -352,21 +314,12 @@ Keep it natural, warm, and fun! 🍻`;
         });
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
-        let text = data.candidates[0].content.parts[0].text;
+        let text = data.candidates[0].content.parts[0].text.trim();
 
-        // Remove bold markdown (we handle styling in JS)
-        text = text.replace(/\*\*(.*?)\*\*/g, '$1');
+        // Clean code block if present
+        text = text.replace(/^```json\s*|```$/gi, '').trim();
 
-        // Extract suggestion
-        const match = text.match(/SUGGEST_ITEM_ID:(\d+)$/m);
-        let suggestion = null;
-        if (match) {
-          const suggestedId = parseInt(match[1]);
-          suggestion = Object.values(menu).flat().find(item => item.id === suggestedId);
-          text = text.replace(/SUGGEST_ITEM_ID:\d+\s*$/m, '').trim();
-        }
-
-        addMessage(text, true, suggestion);
+        addMessage(text, true);
       } catch (err) {
         console.error(err);
         addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
