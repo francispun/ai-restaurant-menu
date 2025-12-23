@@ -235,27 +235,31 @@
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
     
-      let processedText = text;
+      // First, strip all HTML tags to get clean text for matching
+      const textOnly = text.replace(/<[^>]*>/g, '').trim();
     
-      // Always scan for dish names and turn them into inline + Add buttons
+      let processedText = text;  // Keep original with <strong> etc. for display
+    
+      // Now scan using clean text-only version for reliable matching
       Object.values(menu).flat().forEach(item => {
-        // Create a case-insensitive whole-word match for the dish name
         const regex = new RegExp(`\\b(${escapeRegExp(item.name)})\\b`, 'gi');
-        if (regex.test(processedText)) {
-          processedText = processedText.replace(regex, 
+        if (regex.test(textOnly)) {
+          // Replace in the display version (with HTML)
+          processedText = processedText.replace(
+            regex,
             `<span class="font-bold text-white">${item.name}</span>` +
             `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" ` +
-            `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition">` +
+            `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">` +
             `+ Add</button>`
           );
         }
       });
     
-      // Optional: If the AI used the old SUGGEST_ITEM_ID method, show a big prominent button
+      // Optional big suggestion button
       if (suggestion) {
         processedText += `<div class="mt-4">
           <p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
-          <button onclick="acceptSuggestion(${suggestion.id})" 
+          <button onclick="acceptSuggestion(${suggestion.id})"
             class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
             Add ${suggestion.name} to cart
           </button>
