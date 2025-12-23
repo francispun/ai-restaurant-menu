@@ -24,7 +24,6 @@
   </style>
 </head>
 <body class="bg-izakaya-black text-gray-100 min-h-screen">
-  <!-- Header, Menu, Cart UI same as before -->
   <header class="bg-izakaya-red py-6 shadow-lg">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
       <h1 class="text-4xl font-bold">Izakaya Sakura</h1>
@@ -95,7 +94,7 @@
   </div>
 
   <script>
-    const menu = { /* your full menu object here - same as before */ 
+    const menu = {
       sake: [
         {id:1, name:"Hakkaisan Junmai Ginjo", desc:"Clean, crisp, melon notes", price:380},
         {id:2, name:"Dassai 45 Junmai Daiginjo", desc:"Fruity, elegant, apple & pear", price:480},
@@ -150,8 +149,7 @@
 
     let cart = [];
 
-    // Cart and menu functions (unchanged)
-    function renderMenu(category) { /* unchanged */ 
+    function renderMenu(category) {
       const grid = document.getElementById('menuGrid');
       grid.innerHTML = '';
       menu[category].forEach(item => {
@@ -219,54 +217,44 @@
       return div.innerHTML;
     }
 
-    function addMessage(rawText, isBot = false) {
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function addMessage(text, isBot = false, recommendations = []) {
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
 
-      let responseText = rawText;
-      let recommendedNames = [];
-
-      if (isBot) {
-        try {
-          const json = JSON.parse(rawText);
-          responseText = json.response || rawText;
-          recommendedNames = Array.isArray(json.recommendations) ? json.recommendations : [];
-        } catch (e) {
-          responseText = rawText; // fallback
-        }
-      }
-
       const p = document.createElement('p');
       p.className = 'leading-relaxed';
-      p.innerHTML = responseText;
+      p.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-      // Map name -> item
       const itemMap = {};
       Object.values(menu).flat().forEach(item => { itemMap[item.name] = item; });
 
-      // Process text nodes
       const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null);
       const nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
 
       for (const node of nodes) {
-        let text = node.textContent;
+        let textContent = node.textContent;
         let html = '';
         let lastIndex = 0;
 
-        for (const name of recommendedNames) {
+        for (const name of recommendations) {
           const item = itemMap[name];
           if (!item) continue;
           const regex = new RegExp(`(${escapeRegExp(name)})`, 'g');
           let match;
-          while ((match = regex.exec(text)) !== null) {
-            html += escapeHtml(text.slice(lastIndex, match.index));
+          while ((match = regex.exec(textContent)) !== null) {
+            html += escapeHtml(textContent.slice(lastIndex, match.index));
             html += `<span class="font-bold text-white">${name}</span>`;
-            html += `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">+ Add</button>`;
+            html += `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" 
+                     class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">+ Add</button>`;
             lastIndex = match.index + match[0].length;
           }
         }
-        html += escapeHtml(text.slice(lastIndex));
+        html += escapeHtml(textContent.slice(lastIndex));
         if (html) {
           const span = document.createElement('span');
           span.innerHTML = html;
@@ -279,7 +267,7 @@
       aiMessages.scrollTop = aiMessages.scrollHeight;
     }
 
-    ai_Send.onclick = sendAiMessage;
+    aiSend.onclick = sendAiMessage;
     aiInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendAiMessage(); });
 
     async function sendAiMessage() {
@@ -288,38 +276,57 @@
       addMessage(query);
       aiInput.value = '';
 
-      const prompt = `You are a friendly and enthusiastic izakaya assistant at Izakaya Sakura.
+      // First: Natural response
+      const naturalPrompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura.
 
-Here are the EXACT menu item names you must use when recommending (never change them):
+Use these EXACT dish names when recommending:
 ${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
 
-User message: "${query}"
+User: "${query}"
 
-Respond ONLY with valid JSON in this exact format (no extra text, no markdown):
-
-{
-  "response": "Your natural 2–4 sentence reply using the exact item names above.",
-  "recommendations": ["Exact item name 1", "Exact item name 2"]
-}
-
-Include only items you actually recommend. Max 3. If one is your favorite, put it first.`;
+Respond in 2–4 lively, natural sentences. Use the exact dish names. Be warm and conversational. You can use **bold** for emphasis.`;
 
       try {
-        const response = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        });
-        if (!response.ok) throw new Error('API error');
-        const data = await response.json();
-        let text = data.candidates[0].content.parts[0].text.trim();
+        const resp1 = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] }) });
+        if (!resp1.ok) throw new Error('API error');
+        const data1 = await resp1.json();
+        const naturalText = data1.candidates[0].content.parts[0].text.trim();
 
-        // Clean code block if present
-        text = text.replace(/^```json\s*|```$/gi, '').trim();
+        // Show temporary message
+        addMessage(naturalText, true, []);
 
-        addMessage(text, true);
+        // Second: Extract recommendations
+        const extractPrompt = `Message from assistant:
+"""${naturalText}"""
+
+Exact menu items:
+${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
+
+Extract ONLY the menu items positively recommended or mentioned.
+
+Respond ONLY with valid JSON:
+{
+  "recommendations": ["Exact name 1", "Exact name 2"]
+}
+
+Max 3. Empty array if none.`;
+
+        const resp2 = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] }) });
+        let recommendations = [];
+        if (resp2.ok) {
+          const data2 = await resp2.json();
+          let jsonText = data2.candidates[0].content.parts[0].text.trim();
+          jsonText = jsonText.replace(/^```json\s*|```$/gi, '').trim();
+          try {
+            const parsed = JSON.parse(jsonText);
+            recommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+          } catch (e) {}
+        }
+
+        // Replace temporary with final message with buttons
+        aiMessages.lastElementChild.remove();
+        addMessage(naturalText, true, recommendations);
+
       } catch (err) {
         console.error(err);
         addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
