@@ -235,43 +235,41 @@
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
     
-      // If there's a single suggestion (old method), show the big button
+      let processedText = text;
+    
+      // Always scan for dish names and turn them into inline + Add buttons
+      Object.values(menu).flat().forEach(item => {
+        // Create a case-insensitive whole-word match for the dish name
+        const regex = new RegExp(`\\b(${escapeRegExp(item.name)})\\b`, 'gi');
+        if (regex.test(processedText)) {
+          processedText = processedText.replace(regex, 
+            `<span class="font-bold text-white">${item.name}</span>` +
+            `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" ` +
+            `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition">` +
+            `+ Add</button>`
+          );
+        }
+      });
+    
+      // Optional: If the AI used the old SUGGEST_ITEM_ID method, show a big prominent button
       if (suggestion) {
-        div.innerHTML = `<p>${text}</p>
-          <button onclick="acceptSuggestion(${suggestion.id})" class="mt-3 bg-white text-izakaya-black px-6 py-3 rounded-full font-medium hover:bg-gray-200 transition">
+        processedText += `<div class="mt-4">
+          <p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
+          <button onclick="acceptSuggestion(${suggestion.id})" 
+            class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
             Add ${suggestion.name} to cart
-          </button>`;
-      } else {
-        // New: Detect dish names in the text and make them clickable
-        let processedText = text;
-    
-        // Go through all menu items
-        Object.values(menu).flat().forEach(item => {
-          const regex = new RegExp(`\\b(${escapeRegExp(item.name)})\\b`, 'gi');
-          if (regex.test(processedText)) {
-            processedText = processedText.replace(regex, 
-              `<button onclick="addToCart(${item.id})" class="inline-block bg-izakaya-red text-white px-3 py-1 rounded-full text-sm font-bold hover:bg-red-700 transition mx-1">
-                ${item.name} ➤ Add
-              </button>`
-            );
-          }
-        });
-    
-        div.innerHTML = `<p>${processedText}</p>`;
+          </button>
+        </div>`;
       }
     
+      div.innerHTML = `<p class="leading-relaxed">${processedText}</p>`;
       aiMessages.appendChild(div);
       aiMessages.scrollTop = aiMessages.scrollHeight;
     }
     
-    // Helper to escape special regex characters
+    // Helper function to escape special regex characters in dish names
     function escapeRegExp(string) {
       return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    function acceptSuggestion(id) {
-      addToCart(id);
-      addMessage("Added to your cart! 🍻", true);
     }
 
     aiSend.onclick = sendAiMessage;
