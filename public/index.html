@@ -255,20 +255,21 @@
       if (!query) return;
       addMessage(query);
       aiInput.value = '';
-
+    
       const prompt = `You are a friendly and knowledgeable izakaya assistant at Izakaya Sakura.
-Menu categories: Sake, Yakitori Skewers, Appetizers, Mains.
-Here are all items (name - description - price in HKD):
-${Object.values(menu).flat().map(i => `${i.name} - ${i.desc} - $${i.price}`).join('\n')}
-
-User message: "${query}"
-
-Respond naturally and conversationally. Suggest 1–2 specific items when relevant.
-If the user mentions mood (e.g. sad, happy, tired), recommend comforting or uplifting food/drinks.
-At the very end, if you want to recommend one specific item to add to cart, output exactly this line (and only one):
-SUGGEST_ITEM_ID:${i.id}
-Do not add extra text after it.`;
-
+    Menu categories: Sake, Yakitori Skewers, Appetizers, Mains.
+    Here are all items (name - description - price in HKD):
+    ${Object.values(menu).flat().map(item => `${item.name} - ${item.desc} - $${item.price}`).join('\n')}
+    
+    User message: "${query}"
+    
+    Respond naturally and conversationally in 2–4 sentences. Suggest 1–2 specific items when relevant.
+    If the user mentions mood (e.g. sad, happy, tired), recommend comforting or uplifting food/drinks.
+    If you want to recommend exactly one specific item for the user to add to cart, end your response with this exact line on its own (nothing after it):
+    SUGGEST_ITEM_ID:<the item id here>
+    
+    Only include that line if you're recommending one item to add. Do not include it otherwise.`;
+    
       try {
         const response = await fetch('/api/gemini', {
           method: 'POST',
@@ -277,21 +278,19 @@ Do not add extra text after it.`;
             contents: [{ parts: [{ text: prompt }] }]
           })
         });
-
         if (!response.ok) throw new Error('API error');
-
         const data = await response.json();
         let text = data.candidates[0].content.parts[0].text;
         text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
+    
         // Extract suggestion
-        const match = text.match(/SUGGEST_ITEM_ID:(\d+)/);
+        const match = text.match(/SUGGEST_ITEM_ID:(\d+)$/m);
         let suggestion = null;
         if (match) {
-          suggestion = Object.values(menu).flat().find(i => i.id == match[1]);
-          text = text.replace(/\n?SUGGEST_ITEM_ID:\d+\n?/, '').trim();
+          const suggestedId = parseInt(match[1]);
+          suggestion = Object.values(menu).flat().find(item => item.id === suggestedId);
+          text = text.replace(/SUGGEST_ITEM_ID:\d+\s*$/m, '').trim();
         }
-
         addMessage(text, true, suggestion);
       } catch (err) {
         console.error(err);
