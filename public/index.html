@@ -24,6 +24,7 @@
   </style>
 </head>
 <body class="bg-izakaya-black text-gray-100 min-h-screen">
+  <!-- All HTML same as before (header, menu, cart, modal) -->
   <header class="bg-izakaya-red py-6 shadow-lg">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
       <h1 class="text-4xl font-bold">Izakaya Sakura</h1>
@@ -149,6 +150,7 @@
 
     let cart = [];
 
+    // All cart and menu functions unchanged...
     function renderMenu(category) {
       const grid = document.getElementById('menuGrid');
       grid.innerHTML = '';
@@ -222,6 +224,7 @@
     }
 
     function addMessage(text, isBot = false, recommendations = []) {
+      console.log('addMessage called with recommendations:', recommendations);
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
 
@@ -276,7 +279,7 @@
       addMessage(query);
       aiInput.value = '';
 
-      // First: Natural response
+      // First call: Natural response
       const naturalPrompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura.
 
 Use these EXACT dish names when recommending:
@@ -286,16 +289,23 @@ User: "${query}"
 
 Respond in 2–4 lively, natural sentences. Use the exact dish names. Be warm and conversational. You can use **bold** for emphasis.`;
 
+      console.log('1. Sending natural prompt to Gemini');
+
       try {
-        const resp1 = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] }) });
-        if (!resp1.ok) throw new Error('API error');
+        const resp1 = await fetch('/api/gemini', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] }) 
+        });
+        if (!resp1.ok) throw new Error('First API call failed');
         const data1 = await resp1.json();
         const naturalText = data1.candidates[0].content.parts[0].text.trim();
+        console.log('1. Natural response received:', naturalText);
 
         // Show temporary message
         addMessage(naturalText, true, []);
 
-        // Second: Extract recommendations
+        // Second call: Extract recommendations
         const extractPrompt = `Message from assistant:
 """${naturalText}"""
 
@@ -311,24 +321,37 @@ Respond ONLY with valid JSON:
 
 Max 3. Empty array if none.`;
 
-        const resp2 = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] }) });
+        console.log('2. Sending extraction prompt to Gemini');
+
+        const resp2 = await fetch('/api/gemini', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] }) 
+        });
+
         let recommendations = [];
         if (resp2.ok) {
           const data2 = await resp2.json();
           let jsonText = data2.candidates[0].content.parts[0].text.trim();
+          console.log('2. Raw extraction response:', jsonText);
           jsonText = jsonText.replace(/^```json\s*|```$/gi, '').trim();
           try {
             const parsed = JSON.parse(jsonText);
             recommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
-          } catch (e) {}
+            console.log('2. Parsed recommendations:', recommendations);
+          } catch (e) {
+            console.error('2. Failed to parse JSON:', e);
+          }
+        } else {
+          console.error('2. Extraction API call failed');
         }
 
-        // Replace temporary with final message with buttons
+        // Replace temporary with final
         aiMessages.lastElementChild.remove();
         addMessage(naturalText, true, recommendations);
 
       } catch (err) {
-        console.error(err);
+        console.error('Error in sendAiMessage:', err);
         addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
       }
     }
