@@ -24,7 +24,6 @@
   </style>
 </head>
 <body class="bg-izakaya-black text-gray-100 min-h-screen">
-
   <!-- Header -->
   <header class="bg-izakaya-red py-6 shadow-lg">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
@@ -47,10 +46,7 @@
         <button class="tab-btn px-6 py-3 bg-gray-800 rounded-full font-medium" data-category="appetizers">Appetizers</button>
         <button class="tab-btn px-6 py-3 bg-gray-800 rounded-full font-medium" data-category="mains">Mains</button>
       </div>
-
-      <div id="menuGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Items injected by JS -->
-      </div>
+      <div id="menuGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
     </div>
 
     <!-- Cart Sidebar -->
@@ -188,21 +184,21 @@
       updateCart();
     }
 
+    function acceptSuggestion(id) {
+      addToCart(id);
+      addMessage("Added to your cart! 🍻", true);
+    }
+
     function updateCart() {
       const countEls = [document.getElementById('cartCount'), document.getElementById('mobileCartCount')];
       countEls.forEach(el => el.textContent = cart.reduce((sum, i) => sum + i.qty, 0));
-
       document.getElementById('cartTotal').textContent = '$' + cart.reduce((sum, i) => sum + i.price * i.qty, 0);
-
       const itemsDiv = document.getElementById('cartItems');
       itemsDiv.innerHTML = '';
       cart.forEach(item => {
         const div = document.createElement('div');
         div.className = 'flex justify-between';
-        div.innerHTML = `
-          <span>${item.qty}x ${item.name}</span>
-          <span>$${(item.price * item.qty)}</span>
-        `;
+        div.innerHTML = `<span>${item.qty}x ${item.name}</span><span>$${(item.price * item.qty)}</span>`;
         itemsDiv.appendChild(div);
       });
     }
@@ -219,7 +215,6 @@
         renderMenu(btn.dataset.category);
       });
     });
-
     renderMenu('sake');
 
     // AI Chat Modal
@@ -227,53 +222,56 @@
     const aiMessages = document.getElementById('aiMessages');
     const aiInput = document.getElementById('aiInput');
     const aiSend = document.getElementById('aiSend');
-
     document.getElementById('aiChatBtn').onclick = () => aiModal.classList.remove('hidden');
     document.getElementById('closeAi').onclick = () => aiModal.classList.add('hidden');
+
+    // Helper to escape regex
+    function escapeRegExp(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
 
     function addMessage(text, isBot = false, suggestion = null) {
       const div = document.createElement('div');
       div.className = `max-w-md ${isBot ? 'bg-gray-800' : 'bg-izakaya-red ml-auto'} rounded-2xl p-4`;
-    
-      // First, strip all HTML tags to get clean text for matching
-      const textOnly = text.replace(/<[^>]*>/g, '').trim();
-    
-      let processedText = text;  // Keep original with <strong> etc. for display
-    
-      // Now scan using clean text-only version for reliable matching
-      Object.values(menu).flat().forEach(item => {
-        const regex = new RegExp(`\\b(${escapeRegExp(item.name)})\\b`, 'gi');
-        if (regex.test(textOnly)) {
-          // Replace in the display version (with HTML)
-          processedText = processedText.replace(
-            regex,
-            `<span class="font-bold text-white">${item.name}</span>` +
-            `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" ` +
-            `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">` +
-            `+ Add</button>`
-          );
-        }
+
+      // Clean version for matching (remove HTML tags)
+      const cleanText = text.replace(/<[^>]*>/g, ' ');
+
+      let processedText = text;
+
+      // Prepare all menu items
+      const items = Object.values(menu).flat();
+      const itemMap = {};
+      items.forEach(item => { itemMap[item.name] = item; });
+
+      // Sort by length descending to match longer names first
+      const sortedNames = items.map(i => i.name).sort((a, b) => b.length - a.length);
+
+      // Build one global regex
+      const regex = new RegExp(`\\b(${sortedNames.map(escapeRegExp).join('|')})\\b`, 'gi');
+
+      processedText = processedText.replace(regex, (match) => {
+        const item = itemMap[match];
+        if (!item) return match;
+        return `<span class="font-bold text-white">${match}</span>` +
+               `<button onclick="addToCart(${item.id}); this.innerText='✓ Added'; this.disabled=true; this.classList.add('opacity-60')" ` +
+               `class="inline-block ml-2 bg-white text-izakaya-black text-xs font-bold px-3 py-1 rounded-full hover:bg-gray-200 transition align-middle">+ Add</button>`;
       });
-    
-      // Optional big suggestion button
+
+      // Big suggestion button if SUGGEST_ITEM_ID was used
       if (suggestion) {
         processedText += `<div class="mt-4">
           <p class="text-sm opacity-90 mb-2">✨ My top recommendation:</p>
           <button onclick="acceptSuggestion(${suggestion.id})"
             class="w-full bg-white text-izakaya-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition">
-            Add ${suggestion.name} to cart
+            Add ${suggestion.name} to cart 🍻
           </button>
         </div>`;
       }
-    
+
       div.innerHTML = `<p class="leading-relaxed">${processedText}</p>`;
       aiMessages.appendChild(div);
       aiMessages.scrollTop = aiMessages.scrollHeight;
-    }
-    
-    // Helper function to escape special regex characters in dish names
-    function escapeRegExp(string) {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     aiSend.onclick = sendAiMessage;
@@ -284,26 +282,23 @@
       if (!query) return;
       addMessage(query);
       aiInput.value = '';
-    
-      const prompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura — warm, casual, and helpful.
 
-      Full menu (name - description - price HKD - ID):
-      ${Object.values(menu).flat().map(item => `${item.name} - ${item.desc} - $${item.price} - ID:${item.id}`).join('\n')}
-      
-      User message: "${query}"
-      
-      Respond in 2–4 short, lively sentences. Always recommend 1–3 items that fit the request.
-      Be specific with names.
-      
-      If the user seems ready to order or asks for a recommendation, pick YOUR SINGLE FAVORITE matching item from the menu and strongly recommend adding it to cart.
-      
-      At the very end of your response, if (and only if) you want to offer one specific item to add directly to cart, put this exact line on its own (nothing else after it):
-      
-      SUGGEST_ITEM_ID:XX
-      
-      Replace XX with the actual ID of that one item. Use this sparingly — only when it feels natural and the user is likely to want it.
-      Do NOT include the line if recommending multiple or just chatting.`;
-    
+      const prompt = `You are a friendly and enthusiastic izakaya assistant at Izakaya Sakura.
+
+Use these EXACT dish names when recommending (copy them exactly as shown):
+${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
+
+User message: "${query}"
+
+Respond in 2–4 lively sentences. Recommend 1–3 items using the exact names above.
+Do NOT wrap dish names in **bold** or add any markdown formatting around them.
+
+If one item is clearly your favorite for the user, end your response with this exact line (only if appropriate):
+SUGGEST_ITEM_ID:XX
+(replace XX with the actual item ID from the menu)
+
+Keep it natural, warm, and fun! 🍻`;
+
       try {
         const response = await fetch('/api/gemini', {
           method: 'POST',
@@ -315,8 +310,10 @@
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
         let text = data.candidates[0].content.parts[0].text;
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
+
+        // Remove bold markdown (we handle styling in JS)
+        text = text.replace(/\*\*(.*?)\*\*/g, '$1');
+
         // Extract suggestion
         const match = text.match(/SUGGEST_ITEM_ID:(\d+)$/m);
         let suggestion = null;
@@ -325,6 +322,7 @@
           suggestion = Object.values(menu).flat().find(item => item.id === suggestedId);
           text = text.replace(/SUGGEST_ITEM_ID:\d+\s*$/m, '').trim();
         }
+
         addMessage(text, true, suggestion);
       } catch (err) {
         console.error(err);
