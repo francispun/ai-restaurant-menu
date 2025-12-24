@@ -274,82 +274,103 @@
     async function sendAiMessage() {
       const query = aiInput.value.trim();
       if (!query) return;
+    
+      // Add user message to chat and history
       addMessage(query);
+      conversationHistory.push({ role: "user", text: query });
       aiInput.value = '';
-
-      // First call: Natural response (no special instructions)
-      const naturalPrompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura.
-
-Use these EXACT dish names when recommending (never modify them):
-${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
-
-User: "${query}"
-
-Respond in 2–4 lively, natural sentences. Use the exact dish names above when mentioning items. Be warm and conversational. You can use **bold** for emphasis.
-
-Do not add any hidden tags, IDs, or special instructions. Just respond naturally.`;
-
-      console.log('1. Sending natural prompt');
-
+    
+      // Limit history to prevent token overflow (8 messages = ~4 exchanges, very safe)
+      const maxHistoryLength = 8;
+      if (conversationHistory.length > maxHistoryLength) {
+        conversationHistory = conversationHistory.slice(-maxHistoryLength);
+      }
+    
+      // Build Gemini-compatible history
+      const historyContents = conversationHistory.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.text }]
+      }));
+    
+      // Single prompt: natural response + hidden recommendations
+      const prompt = `You are a friendly, enthusiastic izakaya assistant at Izakaya Sakura.
+    
+    Use these EXACT dish names when recommending (never modify them):
+    ${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
+    
+    Continue the conversation naturally based on history.
+    
+    Respond in 2–4 lively sentences. Be warm and conversational. Use **bold** for emphasis.
+    
+    At the very end of your response, add this exact hidden block (nothing else after it):
+    
+    <recommendations>
+    ["Exact name 1", "Exact name 2"]
+    </recommendations>
+    
+    Include only items you positively recommend. Max 3. Use [] if none.`;
+    
+      console.log('Sending prompt with history length:', conversationHistory.length);
+    
       try {
-        const resp1 = await fetch('/api/gemini', {
+        const resp = await fetch('/api/gemini', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: naturalPrompt }] }] })
+          body: JSON.stringify({
+            contents: [...historyContents, { role: "user", parts: [{ text: prompt }] }]
+          })
         });
-        if (!resp1.ok) throw new Error('First call failed');
-        const data1 = await resp1.json();
-        const naturalText = data1.candidates[0].content.parts[0].text.trim();
-        console.log('1. Natural response:', naturalText);
-
-        // Temporary message
-        addMessage(naturalText, true, []);
-
-        // Second call: Extract recommendations
-        const extractPrompt = `Assistant message:
-"""${naturalText}"""
-
-Exact menu items:
-${Object.values(menu).flat().map(i => `"${i.name}"`).join(', ')}
-
-Extract ONLY the menu items that were positively recommended or mentioned.
-
-Respond ONLY with valid JSON:
-{
-  "recommendations": ["Exact name 1", "Exact name 2"]
-}
-
-Max 3 items. Empty array if none.`;
-
-        console.log('2. Sending extraction prompt');
-
-        const resp2 = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: extractPrompt }] }] })
-        });
-
-        let recommendations = [];
-        if (resp2.ok) {
-          const data2 = await resp2.json();
-          let jsonText = data2.candidates[0].content.parts[0].text.trim();
-          console.log('2. Raw extraction:', jsonText);
-          jsonText = jsonText.replace(/^```json\s*|```$/gi, '').trim();
-          try {
-            const parsed = JSON.parse(jsonText);
-            recommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
-            console.log('2. Final recommendations:', recommendations);
-          } catch (e) {
-            console.error('2. JSON parse failed:', e);
-          }
+    
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          console.error('API error response:', errorText);
+          throw new Error(`API call failed: ${resp.status}`);
         }
-
-        // Replace temporary with final
-        aiMessages.lastElementChild.remove();
-        addMessage(naturalText, true, recommendations);
-
+    
+        const data = await resp.json();
+    
+        // Handle Gemini API error object
+        if (data.error) {
+          console.error('Gemini API error:', data.error);
+          addMessage("Oops, something went wrong on my end. Can you try again? 😅", true);
+          return;
+        }
+    
+        // Safety check for valid response
+        if (!data.candidates || data.candidates.length === 0 || 
+            !data.candidates[0].content?.parts?.[0]?.text) {
+          console.error('No valid response from Gemini:', data);
+          addMessage("Sorry, my thoughts are a bit hazy right now. What did you say? 🍶", true);
+          return;
+        }
+    
+        let fullText = data.candidates[0].content.parts[0].text.trim();
+        console.log('Full AI response:', fullText);
+    
+        // Extract recommendations block
+        const recMatch = fullText.match(/<recommendations>\s*\[([\s\S]*?)\]\s*<\/recommendations>/i);
+        let recommendations = [];
+    
+        if (recMatch) {
+          try {
+            const jsonArray = `[${recMatch[1].trim()}]`;
+            recommendations = JSON.parse(jsonArray);
+            if (!Array.isArray(recommendations)) recommendations = [];
+          } catch (e) {
+            console.warn('Failed to parse recommendations block:', e);
+          }
+          // Remove the block from displayed text
+          fullText = fullText.replace(/<recommendations>[\s\S]*?<\/recommendations>/i, '').trim();
+        }
+    
+        console.log('Final recommendations:', recommendations);
+    
+        // Save to history and display
+        conversationHistory.push({ role: "model", text: fullText });
+        addMessage(fullText, true, recommendations);
+    
       } catch (err) {
-        console.error('Error:', err);
+        console.error('Error in sendAiMessage:', err);
         addMessage("Sorry, the AI is taking a quick sake break right now. Try again in a moment! 🍶", true);
       }
     }
